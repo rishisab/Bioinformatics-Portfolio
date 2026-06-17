@@ -1,0 +1,7 @@
+samples:
+  sample1:
+    R1: data/raw/sample1_R1.fastq.gz
+    R2: data/raw/sample1_R2.fastq.gz
+
+
+reference: data/reference/chr22.fa

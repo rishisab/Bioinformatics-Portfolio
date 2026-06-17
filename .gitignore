@@ -1,0 +1,24 @@
+#Raw sequence data
+*.fastq.gz
+*.fastq
+*.fq.gz
+
+#Aligment files
+*.sam
+*.bam
+
+#QC outputs
+*.html
+*.zip
+*.log
+
+#Result and data folders
+results/
+data/
+
+#conda
+Miniconda3-*.sh
+
+
+#snakemake file
+.snakemake/
