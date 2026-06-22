@@ -1,17 +1,17 @@
 configfile: "config/config.yaml"
 
 
-SAMPLES = config["samples"]
+SAMPLES = list(config["samples"].keys())
 
 rule all:
         input:
-                "results/multiqc/multiqc_report.html"
+                expand("results/multiqc/multiqc_report.html",)
 
 #FASTP(trimming)
 rule fastp:
         input:
-                r1 = "data/raw/{sample}_R1.fastq.gz",
-                r2 = "data/raw/{sample}_R2.fastq.gz"
+                r1 = lambda wildcards: config["samples"][wildcards.sample]["r1"],
+                r2 = lambda wildcards: config["samples"][wildcards.sample]["r2"]
         output:
                 r1 = "results/trimmed/{sample}_R1.trimmed.fastq.gz",
                 r2 = "results/trimmed/{sample}_R2.trimmed.fastq.gz",
@@ -35,20 +35,19 @@ rule fastqc:
 	shell:
 		"""
 		mkdir -p results/fastqc 
-		fastqc {input.r1} {input.r2} -o results/fastqc/
+		fastqc {input} -o results/fastqc/
 		"""
 
 #multiqc
 rule multiqc:
 	input:
-		expand([
-			"results/fastqc/{sample}_R1.trimmed_fastqc.html",
-			"results/fastqc/{sample}_R2.trimmed_fastqc.html"],
-			sample=SAMPLES)
+		expand("results/fastqc/{sample}_R1.trimmed_fastqc.html",sample=SAMPLES),
+		expand("results/fastqc/{sample}_R2.trimmed_fastqc.html",sample=SAMPLES)
+		
 	output:
 		"results/multiqc/multiqc_report.html"
 	shell:
 		"""
 		mkdir -p results/multiqc
-		multiqc results/fastqc/ -o results/multiqc/
+		multiqc results/fastqc/ -o results/multiqc/ --force
 		"""
