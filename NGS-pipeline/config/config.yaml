@@ -1,2 +1,8 @@
 samples:
-  - sample1
+  sample1:
+    r1: data/raw/sample1_R1.fastq.gz
+    r2: data/raw/sample1_R2.fastq.gz
+
+  sample2:
+    r1: data/raw/sample2_R1.fastq.gz
+    r2: data/raw/sample2_R2.fastq.gz
