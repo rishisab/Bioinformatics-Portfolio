@@ -1,0 +1,6 @@
+data/
+results/
+.snakemake/
+logs/
+*.fastq.gz
+*.fq.gz
