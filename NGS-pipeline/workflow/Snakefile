@@ -17,12 +17,16 @@ rule fastp:
                 r2 = "results/trimmed/{sample}_R2.trimmed.fastq.gz",
                 html = "results/trimmed/{sample}_fastp.html",
                 json = "results/trimmed/{sample}_fastp.json"
+        threads: 4
+        log:
+                "logs/fastp/{sample}.log"
         shell:
                 """
                 mkdir -p results/trimmed
                 fastp -i {input.r1} -I {input.r2} \
-                      -o {output.r1} -O {output.r2}\
+                      -o {output.r1} -O {output.r2} \
                       -h {output.html} -j {output.json}
+		      > {log} 2>&1
                 """
 #FASTQ
 rule fastqc:
@@ -32,10 +36,14 @@ rule fastqc:
 	output:
 		"results/fastqc/{sample}_R1.trimmed_fastqc.html",
 		"results/fastqc/{sample}_R2.trimmed_fastqc.html"
+	threads: 2
+	log:
+		"logs/fastqc/{sample}.log"
 	shell:
 		"""
 		mkdir -p results/fastqc 
 		fastqc {input} -o results/fastqc/
+		> {log} 2>&1
 		"""
 
 #multiqc
@@ -43,11 +51,14 @@ rule multiqc:
 	input:
 		expand("results/fastqc/{sample}_R1.trimmed_fastqc.html",sample=SAMPLES),
 		expand("results/fastqc/{sample}_R2.trimmed_fastqc.html",sample=SAMPLES)
-		
 	output:
 		"results/multiqc/multiqc_report.html"
+	threads: 1
+	log:
+		"logs/muktiqc.log"
 	shell:
 		"""
 		mkdir -p results/multiqc
 		multiqc results/fastqc/ -o results/multiqc/ --force
+		> {log} 2>&1
 		"""
