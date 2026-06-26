@@ -5,8 +5,28 @@ SAMPLES = list(config["samples"].keys())
 
 rule all:
         input:
-                expand("results/multiqc/multiqc_report.html",)
+                expand("results/fastqc_raw/{sample}_R1_fastqc.html",sample=SAMPLES),
+                expand("results/fastqc_raw/{sample}_R2_fastqc.html",sample=SAMPLES),
+                expand("results/fastqc_trimmed/{sample}_R1.trimmed_fastqc.html",sample=SAMPLES),
+                expand("results/fastqc_trimmed/{sample}_R2.trimmed_fastqc.html",sample=SAMPLES),
+                "results/multiqc/multiqc_report.html"
 
+#fastqc raw
+rule fastqc_raw:
+        input:
+                r1 = lambda wildcards: config["samples"][wildcards.sample]["r1"],
+                r2 = lambda wildcards: config["samples"][wildcards.sample]["r2"]
+        output:
+                r1_html="results/fastqc_raw/{sample}_R1_fastqc.html",
+                r2_html="results/fastqc_raw/{sample}_R2_fastqc.html"
+        threads:2
+        log:
+                "logs/fastqc_raw/{sample}.log"
+        shell:
+                """
+                mkdir -p results/fastqc_raw logs/fastqc_raw
+                fastqc {input.r1} {input.r2} -o results/fastqc_raw -t {threads} > {log} 2>&1
+                """
 #FASTP(trimming)
 rule fastp:
         input:
@@ -22,43 +42,42 @@ rule fastp:
                 "logs/fastp/{sample}.log"
         shell:
                 """
-                mkdir -p results/trimmed
+                mkdir -p results/trimmed logs/fastp
                 fastp -i {input.r1} -I {input.r2} \
                       -o {output.r1} -O {output.r2} \
-                      -h {output.html} -j {output.json}
+                      -h {output.html} -j {output.json} \ 
 		      > {log} 2>&1
                 """
-#FASTQ
+#FASTQ on trimmed data
 rule fastqc:
 	input:
 		r1="results/trimmed/{sample}_R1.trimmed.fastq.gz",
 		r2="results/trimmed/{sample}_R2.trimmed.fastq.gz"
 	output:
-		"results/fastqc/{sample}_R1.trimmed_fastqc.html",
-		"results/fastqc/{sample}_R2.trimmed_fastqc.html"
+		r1_html="results/fastqc_trimmed/{sample}_R1.trimmed_fastqc.html",
+		r2_html="results/fastqc_trimmed/{sample}_R2.trimmed_fastqc.html"
 	threads: 2
 	log:
-		"logs/fastqc/{sample}.log"
+		"logs/fastqc_trimmed/{sample}.log"
 	shell:
 		"""
-		mkdir -p results/fastqc 
-		fastqc {input} -o results/fastqc/
-		> {log} 2>&1
+		mkdir -p results/fastqc_trimmed logs/fastqc_trimmed
+		fastqc {input.r1} {input.r2} -o results/fastqc_trimmed -t {threads} > {log} 2>&1
 		"""
 
 #multiqc
 rule multiqc:
 	input:
-		expand("results/fastqc/{sample}_R1.trimmed_fastqc.html",sample=SAMPLES),
-		expand("results/fastqc/{sample}_R2.trimmed_fastqc.html",sample=SAMPLES)
+		expand("results/fastqc_trimmed/{sample}_R1.trimmed_fastqc.html", sample=SAMPLES),
+		expand("results/fastqc_trimmed/{sample}_R2.trimmed_fastqc.html", sample=SAMPLES)
 	output:
 		"results/multiqc/multiqc_report.html"
 	threads: 1
 	log:
-		"logs/muktiqc.log"
+		"logs/multiqc.log"
 	shell:
 		"""
-		mkdir -p results/multiqc
-		multiqc results/fastqc/ -o results/multiqc/ --force
+		mkdir -p results/multiqc logs
+		multiqc results/ -o results/multiqc/ --force \
 		> {log} 2>&1
 		"""
