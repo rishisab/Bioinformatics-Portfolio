@@ -1,6 +1,40 @@
+# Raw data (very large files)
+
 data/
-results/
-.snakemake/
-logs/
+*.fastq
 *.fastq.gz
-*.fq.gz
+
+# Alignment files
+
+*.sam
+*.bam
+*.bai
+
+# Variant files (optional: keep only small example)
+
+results/varients/
+*.vcf
+*.bcf
+
+# Annotation outputs
+
+results/annotation/
+
+# Logs
+
+logs/
+
+# Conda environments
+
+.env/
+*.conda
+
+# OS / temp files
+
+.DS_Store
+Thumbs.db
+
+# Snakemake metadata
+
+.snakemake/
+

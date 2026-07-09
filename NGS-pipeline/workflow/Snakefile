@@ -1,16 +1,23 @@
 configfile: "config/config.yaml"
 
-
 SAMPLES = list(config["samples"].keys())
 
+wildcard_constraints:
+	sample="[^/.]+"
+ruleorder: sort_bam > sam_to_bam
 rule all:
         input:
                 expand("results/fastqc_raw/{sample}_R1_fastqc.html",sample=SAMPLES),
                 expand("results/fastqc_raw/{sample}_R2_fastqc.html",sample=SAMPLES),
                 expand("results/fastqc_trimmed/{sample}_R1.trimmed_fastqc.html",sample=SAMPLES),
                 expand("results/fastqc_trimmed/{sample}_R2.trimmed_fastqc.html",sample=SAMPLES),
-                "results/multiqc/multiqc_report.html"
-
+                expand("results/multiqc/multiqc_report.html"),
+                expand("results/aligned/{sample}.sam", sample=SAMPLES),
+                expand("results/aligned/{sample}.sorted.bam.bai",sample=SAMPLES),
+                expand("results/varients/{sample}.filtered.vcf", sample=SAMPLES),
+                expand("results/varients/{sample}.filtered.vcf.gz.csi",sample=SAMPLES),
+                expand("results/varients/{sample}.stats.txt",sample=SAMPLES),
+                expand("results/annotation/{sample}.annotated.vcf",sample=SAMPLES)
 #fastqc raw
 rule fastqc_raw:
         input:
@@ -43,9 +50,9 @@ rule fastp:
         shell:
                 """
                 mkdir -p results/trimmed logs/fastp
-                fastp -i {input.r1} -I {input.r2} \
-                      -o {output.r1} -O {output.r2} \
-                      -h {output.html} -j {output.json} \ 
+                fastp -i {input.r1} -I {input.r2} 
+                      -o {output.r1} -O {output.r2} 
+                      -h {output.html} -j {output.json}  
 		      > {log} 2>&1
                 """
 #FASTQ on trimmed data
@@ -78,6 +85,141 @@ rule multiqc:
 	shell:
 		"""
 		mkdir -p results/multiqc logs
-		multiqc results/ -o results/multiqc/ --force \
-		> {log} 2>&1
+		multiqc results/ -o results/multiqc/ --force > {log} 2>&1
+		"""
+#BWA alignment
+rule bwa_mem:
+	input:
+		ref = config["reference"],
+		r1 = "results/trimmed/{sample}_R1.trimmed.fastq.gz",
+		r2 = "results/trimmed/{sample}_R2.trimmed.fastq.gz"
+	output:
+		"results/aligned/{sample}.sam"
+	threads: 4
+	log:
+		"logs/bwa/{sample}.log"
+	shell:
+		"""
+		mkdir -p results/aligned logs/bwa
+		bwa mem -t {threads} {input.ref} {input.r1} {input.r2} > {output} 2> {log}
+		"""
+#SAM to BAM
+rule sam_to_bam:
+	input:
+		"results/aligned/{sample}.sam"
+	output:
+		"results/aligned/{sample}.bam"
+	threads: 2
+	log:
+		"logs/samtools/{sample}_view.log"
+	shell:
+		"""
+		mkdir -p logs/samtools
+		samtools view -Sb {input} > {output} 2> {log}
+		"""
+rule sort_bam:
+	input:
+		"results/aligned/{sample}.bam"
+	output:
+		"results/aligned/{sample}.sorted.bam"
+	threads: 2
+	log:
+		"logs/samtools/{sample}_sort.log"
+	shell:
+		"""
+		samtools sort {input} > {output}
+		"""
+rule index_bam:
+	input:
+		"results/aligned/{sample}.sorted.bam"
+	output:
+		"results/aligned/{sample}.sorted.bam.bai"
+	threads: 1
+	log:
+		"logs/samtools/{sample}_index.log"
+	shell:
+		"""
+		samtools index {input}
+		"""
+#varient calling
+rule mpileup_call:
+	input:
+		bam="results/aligned/{sample}.sorted.bam",
+		ref="reference/genome.fna"
+	output:
+		"results/varients/{sample}.bcf"
+	log:
+		"logs/varients/{sample}_mpileup.log"
+	threads: 2
+	shell:
+		"""
+		mkdir -p results/varients logs/varients
+		bcftools mpileup -Ou -f {input.ref} {input.bam} |
+		bcftools call -mv  -Ob -o {output} 2>{log}
+		"""
+rule bcf_to_vcf:
+	input:
+		"results/varients/{sample}.bcf"
+	output:
+		"results/varients/{sample}.vcf"
+	log:
+		"logs/varients/{sample}_vcf.log"
+	threads: 1
+	shell:
+		"""
+		bcftools view {input} > {output} 2> {log}
+		"""
+#varient filter and statics
+rule filter_vcf:
+	input:
+		"results/varients/{sample}.vcf"
+	output:
+		"results/varients/{sample}.filtered.vcf"
+	log:
+		"logs/varients/{sample}_filtered.log"
+	threads: 2
+	shell:
+		"""
+		bcftools filter -s LOWQUAL -e 'QUAL<20 || DP<10' {input} > {output} 2> {log}
+		"""
+#help to understand result quantitatively-statics
+rule index_vcf:
+	input:
+		"results/varients/{sample}.filtered.vcf"
+	output:
+		vcf="results/varients/{sample}.filtered.vcf.gz",
+		csi="results/varients/{sample}.filtered.vcf.gz.csi"
+	log:
+		"results/varients/{sample}_indexvcf.log"
+	threads: 1
+	shell:
+		"""
+		bgzip -c {input} > {output.vcf}
+		bcftools index -c {output.vcf}
+		"""
+rule varient_statics:
+	input:
+		"results/varients/{sample}.filtered.vcf"
+	output:
+		"results/varients/{sample}.stats.txt"
+	log:
+		"logs/varients/{sample}_states.log"
+	threads: 2
+	shell:
+		"""
+		bcftools stats {input} > {output}
+		"""
+#ANNOTATION
+rule annotation:
+	input:
+		"results/varients/{sample}.filtered.vcf"
+	output:
+		temp("results/annotation/{sample}.annotated.vcf")
+	log:
+		"logs/annotation/{sample}_annotated.log"
+	threads: 2
+	shell:
+		"""
+		mkdir -p results/annotation logs/annotation
+		snpEff -Xmx4g ann GRCh38.86 {input} > {output} 2> {log}
 		"""

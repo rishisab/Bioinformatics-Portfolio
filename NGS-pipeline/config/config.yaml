@@ -6,3 +6,5 @@ samples:
   sample2:
     r1: data/raw/sample2_R1.fastq.gz
     r2: data/raw/sample2_R2.fastq.gz
+reference:
+  "reference/genome.fna"
